@@ -17,7 +17,10 @@
 # Minimum viable config is SHOT_REMOTE. SHOT_DEST defaults to "screenshots"
 # in the remote user's home directory.
 #
-# Requires (local): grim, slurp, wl-clipboard, openssh. Wayland only.
+# Requires (local), by platform:
+#   Wayland: grim, slurp, wl-clipboard, openssh
+#   macOS:   screencapture, pbcopy (both stock), openssh
+# X11 is still unsupported.
 set -euo pipefail
 
 CONFIG="${SHOT_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/send-shot/config}"
@@ -42,7 +45,17 @@ MSG
   exit 2
 fi
 
-for dep in grim slurp wl-copy scp ssh; do
+# One platform check, used for deps, capture, clipboard and notification.
+case "$(uname -s)" in
+  Darwin) PLATFORM=macos ;;
+  *)      PLATFORM=wayland ;;
+esac
+
+case "$PLATFORM" in
+  macos)   deps="screencapture pbcopy scp ssh" ;;
+  wayland) deps="grim slurp wl-copy scp ssh" ;;
+esac
+for dep in $deps; do
   command -v "$dep" >/dev/null || { echo "send-shot: missing dependency: $dep" >&2; exit 3; }
 done
 
@@ -50,11 +63,26 @@ name="shot-$(date +%Y%m%d-%H%M%S).png"
 tmp="$(mktemp -t "send-shot-XXXXXX.png")"
 trap 'rm -f "$tmp"' EXIT
 
-case "${1:-region}" in
-  full)   grim "$tmp" ;;
-  region) grim -g "$(slurp)" "$tmp" ;;
-  *)      echo "send-shot: unknown mode '$1' (expected: region, full)" >&2; exit 2 ;;
+mode="${1:-region}"
+case "$mode" in
+  region|full) ;;
+  *) echo "send-shot: unknown mode '$mode' (expected: region, full)" >&2; exit 2 ;;
 esac
+
+if [ "$PLATFORM" = macos ]; then
+  # -x silences the shutter sound. A cancelled selection leaves $tmp empty (and
+  # may or may not exit non-zero depending on the macOS build), so swallow the
+  # status here and let the emptiness check below own that case.
+  case "$mode" in
+    full)   screencapture -x "$tmp" || true ;;
+    region) screencapture -i -x "$tmp" || true ;;
+  esac
+else
+  case "$mode" in
+    full)   grim "$tmp" ;;
+    region) grim -g "$(slurp)" "$tmp" ;;
+  esac
+fi
 
 # slurp exits non-zero when you cancel a selection; set -e already stopped us.
 [ -s "$tmp" ] || { echo "send-shot: empty capture" >&2; exit 1; }
@@ -67,6 +95,12 @@ case "$DEST" in
 esac
 
 scp -q "$tmp" "$REMOTE:$abs_dest/$name"
-printf '%s' "$abs_dest/$name" | wl-copy
-notify-send "Screenshot -> $REMOTE" "$name" 2>/dev/null || true
+if [ "$PLATFORM" = macos ]; then
+  printf '%s' "$abs_dest/$name" | pbcopy
+  osascript -e "display notification \"$name\" with title \"Screenshot -> $REMOTE\"" \
+    >/dev/null 2>&1 || true
+else
+  printf '%s' "$abs_dest/$name" | wl-copy
+  notify-send "Screenshot -> $REMOTE" "$name" 2>/dev/null || true
+fi
 echo "$abs_dest/$name"

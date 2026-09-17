@@ -13,11 +13,19 @@ image off its own local disk.
 
 ## Requirements
 
-Local machine (the one you screenshot on) must be running **Wayland**:
+Local machine (the one you screenshot on) is either **Wayland** or **macOS**.
+
+Wayland:
 
     grim  slurp  wl-clipboard  openssh
 
 On Arch: `sudo pacman -S grim slurp wl-clipboard openssh`
+
+macOS: nothing to install — it uses stock `screencapture` and `pbcopy`. The
+first run prompts for **Screen Recording** permission for whatever launched it
+(your terminal, or your hotkey daemon); until that is granted, capture fails
+with `could not create image from display`. That also means it cannot be driven
+over ssh — a remote shell has no window server session to capture.
 
 You also need key-based ssh to the remote box, so the script never blocks on a
 password prompt. If `ssh your-remote` logs you in without typing anything,
@@ -84,6 +92,16 @@ Then `hyprctl reload && hyprctl configerrors`.
 
     bindsym $mod+Shift+p exec ~/.local/bin/send-shot.sh region
 
+### macOS
+
+There is no stock way to bind a shell command to a key, so use a hotkey daemon
+(`brew install koekeishiya/formulae/skhd`, then in `~/.skhdrc`):
+
+    cmd + ctrl - p : /Users/YOU/.local/bin/send-shot.sh region
+
+or wrap it in a Shortcuts.app "Run Shell Script" action and assign the key
+there. Either way, grant that app Screen Recording once.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -99,6 +117,9 @@ A cancelled region selection exits non-zero via `slurp` and sends nothing.
 
 - X11 isn't supported — `grim`/`slurp` are Wayland-only. The X11 equivalents
   would be `maim`/`slop` and `xclip`.
+- On macOS a cancelled region selection leaves an empty file rather than a
+  non-zero exit, so it comes back as exit 1 (empty capture) instead of slurp's
+  cancel status.
 - The local temp file is removed on exit, including on failure.
 - Nothing is cleaned up on the remote side; the screenshots directory grows
   until you prune it.
