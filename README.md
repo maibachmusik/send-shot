@@ -1,5 +1,11 @@
 # send-shot
 
+> **Fork.** This is `maibachmusik/send-shot`, forked from
+> [`ConsultingFuture4200/send-shot`](https://github.com/ConsultingFuture4200/send-shot).
+> What this fork adds: **macOS support** — stock `screencapture` + `pbcopy`
+> alongside the upstream Wayland `grim`/`slurp`/`wl-copy` path. Upstream is
+> Wayland-only, so clone *this* repo if either end is a Mac.
+
 Take a screenshot on one Wayland machine, land it on another over ssh, and get
 the remote path on your clipboard.
 
@@ -33,7 +39,7 @@ you're set.
 
 ## Install
 
-    git clone https://github.com/ConsultingFuture4200/send-shot.git
+    git clone https://github.com/maibachmusik/send-shot.git
     cd send-shot
     ./install.sh
 
